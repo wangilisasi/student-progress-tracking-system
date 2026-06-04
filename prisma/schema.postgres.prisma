@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+enum Role {
+  STUDENT
+  SUPERVISOR
+  ADMIN
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  REVISION_REQUESTED
+  RESUBMITTED
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum AuditAction {
+  CREATED
+  UPDATED
+  SUBMITTED
+  RESUBMITTED
+  REVIEW_STARTED
+  REVISION_REQUESTED
+  APPROVED
+  REJECTED
+  COMMENTED
+  ATTACHMENT_ADDED
+  ARCHIVED
+}
+
+model User {
+  id                String       @id @default(cuid())
+  email             String       @unique
+  name              String
+  passwordHash      String
+  role              Role         @default(STUDENT)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  studentReports    Report[]     @relation("StudentReports")
+  supervisedReports Report[]     @relation("SupervisorReports")
+  comments          Comment[]
+  auditLogs         AuditLog[]
+  attachments       Attachment[]
+}
+
+model Report {
+  id              String       @id @default(cuid())
+  title           String
+  reportingPeriod String
+  summary         String       @default("")
+  accomplishments String       @default("")
+  challenges      String       @default("")
+  nextSteps       String       @default("")
+  hoursWorked     Int          @default(0)
+  status          ReportStatus @default(DRAFT)
+  version         Int          @default(1)
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  studentId       String
+  supervisorId    String
+  student         User         @relation("StudentReports", fields: [studentId], references: [id], onDelete: Cascade)
+  supervisor      User         @relation("SupervisorReports", fields: [supervisorId], references: [id], onDelete: Restrict)
+  comments        Comment[]
+  auditLogs       AuditLog[]
+  attachments     Attachment[]
+
+  @@index([studentId])
+  @@index([supervisorId])
+  @@index([status])
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  body       String
+  isDecision Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  reportId   String
+  authorId   String
+  report     Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([reportId])
+}
+
+model AuditLog {
+  id         String        @id @default(cuid())
+  action     AuditAction
+  details    String?
+  fromStatus ReportStatus?
+  toStatus   ReportStatus?
+  createdAt  DateTime      @default(now())
+  reportId   String
+  actorId    String
+  report     Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor      User          @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([reportId])
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  name       String
+  url        String
+  createdAt  DateTime @default(now())
+  reportId   String
+  uploaderId String
+  report     Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  uploader   User     @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+
+  @@index([reportId])
+}
