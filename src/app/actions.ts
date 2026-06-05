@@ -45,8 +45,29 @@ function parseReport(formData: FormData) {
   });
 }
 
+function pathWithNotice(path: string, key: "message" | "error", value: string) {
+  return `${path}?${key}=${encodeURIComponent(value)}`;
+}
+
 function reportPath(reportId: string, key: "message" | "error", value: string) {
-  return `/reports/${reportId}?${key}=${encodeURIComponent(value)}`;
+  return pathWithNotice(`/reports/${reportId}`, key, value);
+}
+
+function newReportPath(key: "message" | "error", value: string) {
+  return pathWithNotice("/reports/new", key, value);
+}
+
+function actionErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof z.ZodError) {
+    return error.issues
+      .map((issue) => {
+        const field = issue.path.join(".");
+        return field ? `${field}: ${issue.message}` : issue.message;
+      })
+      .join("; ");
+  }
+
+  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 export async function loginAction(formData: FormData) {
@@ -70,13 +91,22 @@ export async function logoutAction() {
 
 export async function createReportAction(formData: FormData) {
   const user = await requireUser([Role.STUDENT]);
-  const input = parseReport(formData);
-  const report = await createReport(
-    user.id,
-    formValue(formData, "supervisorId"),
-    input,
-  );
-  redirect(reportPath(report.id, "message", "Draft report created"));
+
+  let reportId: string;
+  try {
+    const input = parseReport(formData);
+    const report = await createReport(
+      user.id,
+      formValue(formData, "supervisorId"),
+      input,
+    );
+    reportId = report.id;
+    revalidatePath("/dashboard");
+  } catch (error) {
+    redirect(newReportPath("error", actionErrorMessage(error, "Could not create report")));
+  }
+
+  redirect(reportPath(reportId, "message", "Draft report created"));
 }
 
 export async function updateReportAction(formData: FormData) {
@@ -99,7 +129,7 @@ export async function updateReportAction(formData: FormData) {
       reportPath(
         reportId,
         "error",
-        error instanceof Error ? error.message : "Could not update report",
+        actionErrorMessage(error, "Could not update report"),
       ),
     );
   }
@@ -120,7 +150,7 @@ export async function submitReportAction(formData: FormData) {
       reportPath(
         reportId,
         "error",
-        error instanceof Error ? error.message : "Could not submit report",
+        actionErrorMessage(error, "Could not submit report"),
       ),
     );
   }
@@ -141,7 +171,7 @@ export async function startReviewAction(formData: FormData) {
       reportPath(
         reportId,
         "error",
-        error instanceof Error ? error.message : "Could not start review",
+        actionErrorMessage(error, "Could not start review"),
       ),
     );
   }
@@ -170,7 +200,7 @@ export async function decideReportAction(formData: FormData) {
       reportPath(
         reportId,
         "error",
-        error instanceof Error ? error.message : "Could not record decision",
+        actionErrorMessage(error, "Could not record decision"),
       ),
     );
   }
@@ -190,7 +220,7 @@ export async function addCommentAction(formData: FormData) {
       reportPath(
         reportId,
         "error",
-        error instanceof Error ? error.message : "Could not add comment",
+        actionErrorMessage(error, "Could not add comment"),
       ),
     );
   }
@@ -211,7 +241,7 @@ export async function archiveReportAction(formData: FormData) {
       reportPath(
         reportId,
         "error",
-        error instanceof Error ? error.message : "Could not archive report",
+        actionErrorMessage(error, "Could not archive report"),
       ),
     );
   }

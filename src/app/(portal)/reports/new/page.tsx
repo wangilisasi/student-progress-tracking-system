@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 import { createReportAction } from "@/app/actions";
+import { MessageBanner } from "@/components/message-banner";
 import { ReportForm } from "@/components/report-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,8 +18,13 @@ import { getDb } from "@/lib/db";
 
 export const metadata = { title: "New report" };
 
-export default async function NewReportPage() {
+export default async function NewReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ message?: string; error?: string }>;
+}) {
   await requireUser([Role.STUDENT]);
+  const query = await searchParams;
   const supervisors = await getDb().user.findMany({
     where: { role: Role.SUPERVISOR },
     select: { id: true, name: true, email: true },
@@ -44,6 +50,8 @@ export default async function NewReportPage() {
           you submit it.
         </p>
       </div>
+
+      <MessageBanner message={query.message} error={query.error} />
 
       <Card className="border-border/70 shadow-sm">
         <CardHeader>
